@@ -71,7 +71,8 @@ namespace System.Net {
 			SocketAsyncEventArgs args = new SocketAsyncEventArgs ();
 			args.UserToken = this;
 			args.Completed += OnAccept;
-			Accept (sock, args);
+			Socket dummy = null;
+			Accept (sock, args, ref dummy);
 			prefixes = new Hashtable ();
 			unregistered = new Dictionary<HttpConnection, HttpConnection> ();
 		}
@@ -96,9 +97,21 @@ namespace System.Net {
 			}
 		}
 
-		static void Accept (Socket socket, SocketAsyncEventArgs e) {
+		static void Accept (Socket socket, SocketAsyncEventArgs e, ref Socket accepted) {
 			e.AcceptSocket = null;
-			var asyn = socket.AcceptAsync(e);
+			bool asyn;
+			try {
+				asyn = socket.AcceptAsync(e);
+			} catch {
+				if (accepted != null) {
+					try {
+						accepted.Close ();
+					} catch {
+					}
+					accepted = null;
+				}
+				return;
+			}
 			if (!asyn) {
 				ProcessAccept(e);
 			}
@@ -114,7 +127,7 @@ namespace System.Net {
 			EndPointListener epl = (EndPointListener) args.UserToken;
 
 
-			Accept (epl.sock, args);
+			Accept (epl.sock, args, ref accepted);
 			if (accepted == null)
 				return;
 
